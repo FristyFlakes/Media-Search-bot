@@ -63,7 +63,7 @@ async def get_search_results(query, file_type=None, max_results=10, offset=0):
     except:
         return []
 
-    filter = {'file_name': regex}
+    filter = {'$or': [{'file_name': regex}, {'caption': regex}]}
     if file_type:
         filter['file_type'] = file_type
 
