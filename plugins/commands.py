@@ -2,8 +2,8 @@ import os
 import logging
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from info import START_MSG, CHANNELS, ADMINS, COLLECTION_NAME
-from utils import Media, db
+from info import START_MSG, CHANNELS, ADMINS
+from utils import Media
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,6 @@ async def start(bot, message):
 @Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
     """Send basic information of channel"""
-    
     if isinstance(CHANNELS, (int, str)):
         channels = [CHANNELS]
     elif isinstance(CHANNELS, list):
@@ -43,7 +42,7 @@ async def channel_info(bot, message):
             os.remove(filename)
         else:
             await message.reply(str(channel_info))
-            
+
 
 @Client.on_message(filters.command('total') & filters.user(ADMINS))
 async def total(bot, message):
@@ -69,7 +68,6 @@ async def log_file(bot, message):
 @Client.on_message(filters.command('delete') & filters.user(ADMINS))
 async def delete(bot, message):
     """Delete file from database"""
-
     reply = message.reply_to_message
     if reply and reply.media:
         msg = await message.reply("Processing...⏳", quote=True)
@@ -85,8 +83,7 @@ async def delete(bot, message):
         await msg.edit('This is not supported file format')
         return
 
-    collection = db[COLLECTION_NAME]
-    result = await collection.delete_one({
+    result = await Media.collection.delete_one({
         'file_name': media.file_name,
         'file_size': media.file_size,
         'mime_type': media.mime_type,

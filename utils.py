@@ -3,6 +3,7 @@ import logging
 from pymongo.errors import DuplicateKeyError
 from umongo import Instance, Document, fields
 from motor.motor_asyncio import AsyncIOMotorClient
+from marshmallow.exceptions import ValidationError
 from info import DATABASE_URI, DATABASE_NAME, COLLECTION_NAME
 
 logger = logging.getLogger(__name__)
@@ -30,31 +31,34 @@ class Media(Document):
 async def save_file(media):
     """Save file in database"""
 
-    file = Media(
-        file_id=media.file_id,
-        file_ref=media.file_ref,
-        file_name=media.file_name,
-        file_size=media.file_size,
-        file_type=media.file_type,
-        mime_type=media.mime_type,
-    )
-
-    caption = media.caption
-    if caption:
-        file.caption = caption
-
     try:
-        await file.commit()
-    except DuplicateKeyError:
-        logger.warning(media.file_name + " is already saved in database")
+        file = Media(
+            file_id=media.file_id,
+            file_ref=media.file_ref,
+            file_name=media.file_name,
+            file_size=media.file_size,
+            file_type=media.file_type,
+            mime_type=media.mime_type,
+        )
+    except ValidationError:
+        logger.exception('Error occurred while saving file in database')
     else:
-        logger.info(media.file_name + " is saved in database")
+        caption = media.caption
+        if caption:
+            file.caption = caption
+
+        try:
+            await file.commit()
+        except DuplicateKeyError:
+            logger.warning(media.file_name + " is already saved in database")
+        else:
+            logger.info(media.file_name + " is saved in database")
 
 
 async def get_search_results(query, file_type=None, max_results=10, offset=0):
     """For given query return (results, next_offset)"""
 
-    raw_pattern = query.lower().strip().replace(' ', '.?')
+    raw_pattern = query.lower().strip().replace(' ', '.*')
     if not raw_pattern:
         raw_pattern = '.'
 
