@@ -1,7 +1,11 @@
+import os
+import logging
 from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from info import START_MSG, CHANNELS, ADMINS, COLLECTION_NAME
-from utils import Media, db
+from info import START_MSG, CHANNELS, ADMINS
+from utils import Media
+
+logger = logging.getLogger(__name__)
 
 
 @Client.on_message(filters.command('start'))
@@ -17,10 +21,9 @@ async def start(bot, message):
         reply_markup=reply_markup)
 
 
-@Client.on_message(filters.command('channel') & filters.chat(ADMINS))
+@Client.on_message(filters.command('channel') & filters.user(ADMINS))
 async def channel_info(bot, message):
     """Send basic information of channel"""
-
     if isinstance(CHANNELS, (int, str)):
         channels = [CHANNELS]
     elif isinstance(CHANNELS, list):
@@ -30,21 +33,30 @@ async def channel_info(bot, message):
 
     for channel in channels:
         channel_info = await bot.get_chat(channel)
-        try:
+        string = str(channel_info)
+        if len(string) > 4096:
+            filename = (channel_info.title or channel_info.first_name) + ".txt"
+            with open(filename, 'w') as f:
+                f.write(string)
+            await message.reply_document(filename)
+            os.remove(filename)
+        else:
             await message.reply(str(channel_info))
-        except Exception as e:
-            await message.reply(f'Error: {e}')
 
 
-@Client.on_message(filters.command('total') & filters.chat(ADMINS))
+@Client.on_message(filters.command('total') & filters.user(ADMINS))
 async def total(bot, message):
     """Show total files in database"""
     msg = await message.reply("Processing...⏳", quote=True)
-    total = await Media.count_documents()
-    await msg.edit(f'📁 Saved files: {total}')
+    try:
+        total = await Media.count_documents()
+        await msg.edit(f'📁 Saved files: {total}')
+    except Exception as e:
+        logger.exception('Failed to check total files')
+        await msg.edit(f'Error: {e}')
 
 
-@Client.on_message(filters.command('logger') & filters.chat(ADMINS))
+@Client.on_message(filters.command('logger') & filters.user(ADMINS))
 async def log_file(bot, message):
     """Send log file"""
     try:
@@ -53,10 +65,9 @@ async def log_file(bot, message):
         await message.reply(str(e))
 
 
-@Client.on_message(filters.command('delete') & filters.chat(ADMINS))
+@Client.on_message(filters.command('delete') & filters.user(ADMINS))
 async def delete(bot, message):
     """Delete file from database"""
-
     reply = message.reply_to_message
     if reply and reply.media:
         msg = await message.reply("Processing...⏳", quote=True)
@@ -64,16 +75,15 @@ async def delete(bot, message):
         await message.reply('Reply to file with /delete which you want to delete', quote=True)
         return
 
-    for kind in ("document", "video", "audio"):
-        media = getattr(reply, kind, None)
+    for file_type in ("document", "video", "audio"):
+        media = getattr(reply, file_type, None)
         if media is not None:
             break
     else:
         await msg.edit('This is not supported file format')
         return
 
-    collection = db[COLLECTION_NAME]
-    result = await collection.delete_one({
+    result = await Media.collection.delete_one({
         'file_name': media.file_name,
         'file_size': media.file_size,
         'mime_type': media.mime_type,

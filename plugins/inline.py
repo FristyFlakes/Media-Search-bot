@@ -1,5 +1,5 @@
 from urllib.parse import quote
-from pyrogram import Client, filters, emoji
+from pyrogram import Client, emoji
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, InlineQueryResultCachedDocument
 from utils import get_search_results
 from info import MAX_RESULTS, CACHE_TIME, SHARE_BUTTON_TEXT
@@ -10,10 +10,18 @@ async def answer(bot, query):
     """Show search results for given inline query"""
 
     results = []
-    string = query.query
-    offset = int(query.offset) if query.offset else 0
+    if '|' in query.query:
+        string, file_type = query.query.split('|', maxsplit=1)
+        string = string.strip()
+        file_type = file_type.strip().lower()
+    else:
+        string = query.query.strip()
+        file_type = None
+
+    offset = int(query.offset or 0)
     reply_markup = get_reply_markup(bot.username)
     files, next_offset = await get_search_results(string,
+                                                  file_type=file_type,
                                                   max_results=MAX_RESULTS,
                                                   offset=offset)
 
@@ -22,7 +30,7 @@ async def answer(bot, query):
             InlineQueryResultCachedDocument(
                 title=file.file_name,
                 file_id=file.file_id,
-                caption=file.caption,
+                caption=file.caption or "",
                 description=f'Size: {get_size(file.file_size)}\nType: {file.file_type}',
                 reply_markup=reply_markup))
 
@@ -50,11 +58,10 @@ async def answer(bot, query):
 
 
 def get_reply_markup(username):
+    url = 't.me/share/url?url=' + quote(SHARE_BUTTON_TEXT.format(username=username))
     buttons = [[
         InlineKeyboardButton('Search again', switch_inline_query_current_chat=''),
-        InlineKeyboardButton(
-            text='Share bot',
-            url='tg://msg?text='+ quote(SHARE_BUTTON_TEXT.format(username=username))),
+        InlineKeyboardButton('Share bot', url=url),
     ]]
     return InlineKeyboardMarkup(buttons)
 
